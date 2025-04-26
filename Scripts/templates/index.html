@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mental Health Assistant</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #f0f2f5;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .chat-container {
+            width: 100%;
+            max-width: 600px;
+            height: 80vh;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .chat-header {
+            background-color: #3b82f6;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-weight: bold;
+            border-radius: 10px 10px 0 0;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            max-width: 75%;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+        
+        .system-message {
+            width: 100%;
+            max-width: 100%;
+            text-align: center;
+            color: #6b7280;
+            font-size: 0.8rem;
+            margin: 8px 0;
+        }
+        
+        .user-message {
+            margin-left: auto;
+            background-color: #3b82f6;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 18px 18px 0 18px;
+        }
+        
+        .bot-message {
+            margin-right: auto;
+            background-color: #f1f5f9;
+            color: #0f172a;
+            padding: 10px 15px;
+            border-radius: 18px 18px 18px 0;
+        }
+        
+        .typing-indicator {
+            display: flex;
+            margin-right: auto;
+            background-color: #f1f5f9;
+            padding: 10px 15px;
+            border-radius: 18px 18px 18px 0;
+        }
+        
+        .dot {
+            width: 8px;
+            height: 8px;
+            background-color: #6b7280;
+            border-radius: 50%;
+            margin: 0 2px;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        
+        .dot:nth-child(1) {
+            animation-delay: -0.32s;
+        }
+        
+        .dot:nth-child(2) {
+            animation-delay: -0.16s;
+        }
+        
+        @keyframes bounce {
+            0%, 80%, 100% {
+                transform: scale(0);
+            }
+            40% {
+                transform: scale(1);
+            }
+        }
+        
+        .chat-input {
+            display: flex;
+            padding: 15px;
+            background-color: white;
+            border-top: 1px solid #e5e7eb;
+        }
+        
+        .chat-input input {
+            flex: 1;
+            padding: 10px 15px;
+            border: 1px solid #d1d5db;
+            border-radius: 20px 0 0 20px;
+            outline: none;
+        }
+        
+        .chat-input input:focus {
+            border-color: #3b82f6;
+        }
+        
+        .chat-input button {
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 0 20px 20px 0;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .chat-input button:hover {
+            background-color: #2563eb;
+        }
+        
+        .chat-input button:disabled,
+        .chat-input input:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            Mental Health Assistant
+        </div>
+        <div class="chat-messages" id="chat-messages">
+            <!-- Messages will be added here dynamically -->
+        </div>
+        <div class="chat-input">
+            <input type="text" id="user-input" placeholder="Type your message..." disabled>
+            <button id="send-button" disabled>Send</button>
+        </div>
+    </div>
+
+    <script>
+        // DOM elements
+        const chatMessages = document.getElementById('chat-messages');
+        const userInput = document.getElementById('user-input');
+        const sendButton = document.getElementById('send-button');
+        
+        // Chat state
+        let currentStep = 0;
+        let userData = {
+            rating: null,
+            duration: null,
+            symptoms: null,
+            country: null
+        };
+        let isProcessing = false;
+        
+        // Initialize the chat on page load
+        window.onload = function() {
+            initializeChat();
+        };
+        
+        // Add event listeners
+        sendButton.addEventListener('click', handleSendMessage);
+        userInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                handleSendMessage();
+            }
+        });
+        
+        // Initialize the chat assistant
+        function initializeChat() {
+            addSystemMessage('Initializing Mental Health Assistant...');
+            
+            setTimeout(() => {
+                addSystemMessage('All available datasets loaded successfully.');
+                addSystemMessage('Mental Health Assistant initialized successfully.');
+                addSystemMessage('== Mental Health Assistant ==');
+                addSystemMessage("Type 'exit' to end the conversation.");
+                
+                setTimeout(() => {
+                    const initialMessage = "Hi! I'm your Mental Health Assistant, trained on global mental health data. I'd like to understand how you're feeling. On a scale of 1-10, how would you rate your mental wellbeing today? (1 being very poor, 10 being excellent) [Please enter a number between 1-10]";
+                    addBotMessage(initialMessage);
+                    
+                    // Enable input controls
+                    userInput.disabled = false;
+                    sendButton.disabled = false;
+                    userInput.focus();
+                }, 500);
+            }, 1000);
+        }
+        
+        // Handle send message button click
+        function handleSendMessage() {
+            if (isProcessing) return;
+            
+            const text = userInput.value.trim();
+            if (!text) return;
+            
+            // Add user message to chat
+            addUserMessage(text);
+            
+            // Clear input and disable while processing
+            userInput.value = '';
+            userInput.disabled = true;
+            sendButton.disabled = true;
+            isProcessing = true;
+            
+            // Show typing indicator
+            showTypingIndicator();
+            
+            // Process the message with a delay to simulate thinking
+            setTimeout(() => {
+                // Hide typing indicator
+                hideTypingIndicator();
+                
+                // Process user input
+                processUserInput(text);
+                
+                // Re-enable input unless we're exiting
+                if (text.toLowerCase() !== 'exit') {
+                    userInput.disabled = false;
+                    sendButton.disabled = false;
+                    userInput.focus();
+                }
+                
+                isProcessing = false;
+            }, 1000);
+        }
+        
+        // Process user input based on current step
+        function processUserInput(input) {
+            if (input.toLowerCase() === 'exit') {
+                const exitMessage = "Thank you for using the Mental Health Assistant. Remember that this tool provides information based on global mental health data, but is not a substitute for professional care. If you're experiencing mental health difficulties, please consider speaking with a healthcare professional.";
+                addBotMessage(exitMessage);
+                return;
+            }
+            
+            // Process based on current step
+            switch (currentStep) {
+                case 0:
+                    handleRatingInput(input);
+                    break;
+                case 1:
+                    handleDurationInput(input);
+                    break;
+                case 2:
+                    handleSymptomsInput(input);
+                    break;
+                case 3:
+                    handleCountryInput(input);
+                    break;
+                case 4:
+                    handleLearnMoreInput(input);
+                    break;
+                case 5:
+                    handleResourcesInput(input);
+                    break;
+                default:
+                    addBotMessage("If you have any other questions about mental health, feel free to ask. You can type 'exit' to end our conversation.");
+                    break;
+            }
+        }
+        
+        // Handle rating input (step 0)
+        function handleRatingInput(input) {
+            const rating = parseInt(input);
+            
+            if (isNaN(rating) || rating < 1 || rating > 10) {
+                addBotMessage("Please enter a valid number between 1 and 10 to rate your mental wellbeing.");
+                return;
+            }
+            
+            userData.rating = rating;
+            
+            let response;
+            if (rating <= 3) {
+                response = "I'm sorry to hear you're not feeling well.\nHow long have you been experiencing these feelings? (days, weeks, months?)";
+            } else if (rating <= 6) {
+                response = "It sounds like you're having some challenges.\nHow long have you been experiencing these feelings? (days, weeks, months?)";
+            } else {
+                response = "I'm glad to hear you're doing relatively well.\nHow long have you been experiencing these feelings? (days, weeks, months?)";
+            }
+            
+            addBotMessage(response);
+            currentStep = 1;
+        }
+        
+        // Handle duration input (step 1)
+        function handleDurationInput(input) {
+            userData.duration = input;
+            
+            const response = "Thank you for sharing. Could you describe the main symptoms or feelings you've been experiencing? [For example: anxiety, low mood, trouble sleeping, irritability, worry, panic attacks, etc.]";
+            
+            addBotMessage(response);
+            currentStep = 2;
+        }
+        
+        // Handle symptoms input (step 2)
+        function handleSymptomsInput(input) {
+            userData.symptoms = input;
+            
+            const response = "Thank you for sharing those details. Which country do you live in? This will help me provide statistics and coping strategies relevant to your region. [Example countries: India, United States, United Kingdom, Canada, Australia]";
+            
+            addBotMessage(response);
+            currentStep = 3;
+        }
+        
+        // Handle country input (step 3)
+        function handleCountryInput(input) {
+            const country = input.trim();
+            userData.country = country;
+            
+            // Determine likely condition based on symptoms
+            const symptoms = userData.symptoms?.toLowerCase() || '';
+            let response;
+            
+            if (symptoms.includes('low mood') || symptoms.includes('sadness') || symptoms.includes('hopeless')) {
+                response = "Based on what you've shared, some of your experiences might be associated with depression. Would you like to learn more about depression and coping strategies? [Please respond with: yes or no]";
+            } else if (symptoms.includes('worry') || symptoms.includes('anxious') || symptoms.includes('panic')) {
+                response = "Based on what you've shared, some of your experiences might be associated with anxiety. Would you like to learn more about anxiety and coping strategies? [Please respond with: yes or no]";
+            } else {
+                response = "Based on what you've shared, would you like to learn more about common mental health challenges and coping strategies? [Please respond with: yes or no]";
+            }
+            
+            addBotMessage(response);
+            currentStep = 4;
+        }
+        
+        // Handle learn more input (step 4)
+        function handleLearnMoreInput(input) {
+            const affirmative = input.toLowerCase().includes('yes');
+            
+            if (!affirmative) {
+                addBotMessage("I understand. Is there something specific about mental health you'd like to know about instead?");
+                return;
+            }
+            
+            // Get country-specific and condition-specific information
+            const country = userData.country || 'your country';
+            const symptoms = userData.symptoms?.toLowerCase() || '';
+            let response;
+            
+            if (symptoms.includes('low mood') || symptoms.includes('sadness') || symptoms.includes('hopeless')) {
+                // Depression info for the specified country
+                const depressionRate = getCountryDepressionRate(country);
+                const globalRate = 29.0; // Global average from the data
+                const comparison = depressionRate < globalRate ? 'lower' : 'higher';
+                
+                response = `Information about Depression:
+
+Depression (major depressive disorder) causes persistent feelings of sadness and loss of interest. It affects how you feel, think, and behave and can lead to various emotional and physical problems.
+In ${country}, approximately ${depressionRate.toFixed(1)}% of the population experiences depression.
+This is ${comparison} than the global average of ${globalRate.toFixed(1)}%.
+
+Evidence-based strategies for managing depression:
+
+1. Psychotherapy (especially CBT and Interpersonal Therapy)
+2. Medication (antidepressants) when prescribed by a healthcare provider
+3. Regular physical activity, which has been shown to reduce symptoms
+4. Maintaining social connections and talking about your feelings
+5. Establishing routines and setting achievable goals
+
+It's important to work with healthcare professionals for personalized treatment.`;
+            } else if (symptoms.includes('worry') || symptoms.includes('anxious') || symptoms.includes('panic')) {
+                // Anxiety info for the specified country
+                const anxietyRate = getCountryAnxietyRate(country);
+                const globalRate = 34.2; // Global average from the data
+                const comparison = anxietyRate < globalRate ? 'lower' : 'higher';
+                
+                response = `Information about Anxiety:
+
+Anxiety disorders involve persistent, excessive worry or fear about everyday situations. Anxiety can manifest as physical symptoms and interfere with daily activities.
+In ${country}, approximately ${anxietyRate.toFixed(1)}% of the population experiences anxiety disorders.
+This is ${comparison} than the global average of ${globalRate.toFixed(1)}%.
+
+Evidence-based strategies for managing anxiety:
+
+1. Cognitive-behavioral therapy (CBT)
+2. Mindfulness and meditation practices
+3. Regular physical exercise
+4. Breathing techniques and progressive muscle relaxation
+5. Limiting caffeine and alcohol consumption
+6. Medication when prescribed by a healthcare provider
+
+It's important to work with healthcare professionals for personalized treatment.`;
+            } else {
+                // General mental health info
+                response = `Information about Mental Health:
+
+Mental health encompasses emotional, psychological, and social well-being, affecting how we think, feel, act, handle stress, relate to others, and make choices.
+
+Common evidence-based strategies for maintaining good mental health:
+
+1. Regular physical activity and a balanced diet
+2. Adequate sleep and consistent sleep schedule
+3. Social connection and supportive relationships
+4. Stress management techniques like mindfulness and relaxation
+5. Setting boundaries and practicing self-care
+6. Seeking professional help when needed
+
+Remember that everyone's mental health needs are different, and what works for one person may not work for another.`;
+            }
+            
+            addBotMessage(response);
+            
+            // After a delay, ask about resources
+            setTimeout(() => {
+                addBotMessage("If you have any other questions about mental health resources or would like to discuss something specific, feel free to ask. Would you like information about professional help resources in your region? [Please respond with: yes or no]");
+                currentStep = 5;
+            }, 1500);
+        }
+        
+        // Handle resources input (step 5)
+        function handleResourcesInput(input) {
+            const affirmative = input.toLowerCase().includes('yes');
+            
+            if (!affirmative) {
+                addBotMessage("I understand. Feel free to ask any other questions about mental health, or type 'exit' to end our conversation.");
+                currentStep = 6;
+                return;
+            }
+            
+            // Get resources for the specified country
+            const country = userData.country || 'your country';
+            const resources = getMentalHealthResources(country);
+            
+            let response = `Mental Health Resources:
+
+Resources in ${country}:
+${resources.local.map(r => `- ${r}`).join('\n')}
+
+Global Resources:
+${resources.global.map(r => `- ${r}`).join('\n')}
+
+Remember that in a serious emergency, you should call your local emergency services.`;
+            
+            addBotMessage(response);
+            currentStep = 6;
+        }
+        
+        // Helper functions
+        
+        // Add a system message to the chat
+        function addSystemMessage(text) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message system-message';
+            messageDiv.textContent = text;
+            chatMessages.appendChild(messageDiv);
+            scrollToBottom();
+        }
+        
+        // Add a user message to the chat
+        function addUserMessage(text) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message user-message';
+            messageDiv.textContent = text;
+            chatMessages.appendChild(messageDiv);
+            scrollToBottom();
+        }
+        
+        // Add a bot message to the chat
+        function addBotMessage(text) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message bot-message';
+            messageDiv.textContent = text;
+            chatMessages.appendChild(messageDiv);
+            scrollToBottom();
+        }
+        
+        // Show typing indicator
+        function showTypingIndicator() {
+            const indicatorDiv = document.createElement('div');
+            indicatorDiv.className = 'typing-indicator';
+            indicatorDiv.id = 'typing-indicator';
+            
+            for (let i = 0; i < 3; i++) {
+                const dot = document.createElement('div');
+                dot.className = 'dot';
+                indicatorDiv.appendChild(dot);
+            }
+            
+            chatMessages.appendChild(indicatorDiv);
+            scrollToBottom();
+        }
+        
+        // Hide typing indicator
+        function hideTypingIndicator() {
+            const indicator = document.getElementById('typing-indicator');
+            if (indicator) {
+                indicator.remove();
+            }
+        }
+        
+        // Scroll to the bottom of the chat
+        function scrollToBottom() {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        // Get depression rate for a country
+        function getCountryDepressionRate(country) {
+            // In a real app, this would come from the datasets
+            const rates = {
+                'India': 3.3,
+                'United States': 4.8,
+                'United Kingdom': 4.5,
+                'Canada': 4.7,
+                'Australia': 5.9
+            };
+            
+            return rates[country] || 3.4; // Default to global average if country not found
+        }
+        
+        // Get anxiety rate for a country
+        function getCountryAnxietyRate(country) {
+            // In a real app, this would come from the datasets
+            const rates = {
+                'India': 3.7,
+                'United States': 6.3,
+                'United Kingdom': 6.6,
+                'Canada': 3.8,
+                'Australia': 7.0
+            };
+            
+            return rates[country] || 3.8; // Default to global average if country not found
+        }
+        
+        // Get mental health resources for a country
+        function getMentalHealthResources(country) {
+            // In a real app, this would come from a database
+            const resources = {
+                'India': {
+                    local: [
+                        'AASRA Suicide Prevention Helpline: 91-9820466726',
+                        'National Institute of Mental Health and Neurosciences (NIMHANS): www.nimhans.ac.in',
+                        'The Live Love Laugh Foundation: www.thelivelovelaughfoundation.org',
+                        'Manas Foundation: www.manasfoundation.in',
+                        'SCARF India (Schizophrenia Research Foundation): www.scarfindia.org',
+                        'iCall Psychosocial Helpline: 022-25521111',
+                        'Vandrevala Foundation Mental Health Helpline: 1860-2662-345'
+                    ],
+                    global: [
+                        'WHO Mental Health Website: www.who.int/mental_health',
+                        'International Association for Suicide Prevention: www.iasp.info'
+                    ]
+                },
+                'United States': {
+                    local: [
+                        'National Suicide Prevention Lifeline: 1-800-273-8255',
+                        'Crisis Text Line: Text HOME to 741741',
+                        'National Alliance on Mental Illness (NAMI): www.nami.org',
+                        'Mental Health America: www.mhanational.org'
+                    ],
+                    global: [
+                        'WHO Mental Health Website: www.who.int/mental_health',
+                        'International Association for Suicide Prevention: www.iasp.info'
+                    ]
+                },
+                'United Kingdom': {
+                    local: [
+                        'Samaritans: 116 123',
+                        'Mind: www.mind.org.uk',
+                        'NHS Mental Health Services: www.nhs.uk/mental-health'
+                    ],
+                    global: [
+                        'WHO Mental Health Website: www.who.int/mental_health',
+                        'International Association for Suicide Prevention: www.iasp.info'
+                    ]
+                },
+                'Canada': {
+                    local: [
+                        'Crisis Services Canada: 1-833-456-4566',
+                        'Canadian Mental Health Association: www.cmha.ca',
+                        'Kids Help Phone: 1-800-668-6868'
+                    ],
+                    global: [
+                        'WHO Mental Health Website: www.who.int/mental_health',
+                        'International Association for Suicide Prevention: www.iasp.info'
+                    ]
+                },
+                'Australia': {
+                    local: [
+                        'Lifeline Australia: 13 11 14',
+                        'Beyond Blue: 1300 22 4636',
+                        'Headspace: www.headspace.org.au'
+                    ],
+                    global: [
+                        'WHO Mental Health Website: www.who.int/mental_health',
+                        'International Association for Suicide Prevention: www.iasp.info'
+                    ]
+                }
+            };
+            
+            return resources[country] || {
+                local: ['No specific resources found for your country'],
+                global: [
+                    'WHO Mental Health Website: www.who.int/mental_health',
+                    'International Association for Suicide Prevention: www.iasp.info'
+                ]
+            };
+        }
+    </script>
+</body>
+</html>
